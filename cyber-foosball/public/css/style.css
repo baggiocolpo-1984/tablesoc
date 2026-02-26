@@ -100,3 +100,64 @@ body {
     font-size: 16px;
     line-height: 1.5;
 }
+
+#rod-selection {
+    position: absolute;
+    bottom: 20px;
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #0ff;
+}
+
+.rod-btn {
+    background: #111;
+    color: #888;
+    border: 2px solid #555;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.rod-btn.active {
+    background: #0ff;
+    color: #000;
+    border-color: #fff;
+    box-shadow: 0 0 15px #0ff;
+}
+
+@media (max-width: 768px) {
+    #operation-guide {
+        top: 80px;
+        right: 10px;
+        transform: none;
+        padding: 10px 15px;
+    }
+
+    #operation-guide h3 {
+        font-size: 16px;
+        margin-bottom: 8px;
+    }
+
+    #operation-guide p {
+        font-size: 12px;
+        margin: 5px 0;
+    }
+
+    #rod-selection {
+        bottom: 10px;
+        gap: 5px;
+        padding: 5px;
+    }
+
+    .rod-btn {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+}
