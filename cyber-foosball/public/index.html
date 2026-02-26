@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CYBER FOOSBALL</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="ui">
+        <div id="score-board">
+            <span id="p1-score">0</span> - <span id="p2-score">0</span>
+        </div>
+        <div id="overlay">
+            <h1 id="status-text">WAITING FOR OPPONENT...</h1>
+            <button id="start-btn" style="display:none;">START GAME</button>
+        </div>
+    </div>
+    <div id="canvas-container"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="js/client.js"></script>
+</body>
+
+</html>

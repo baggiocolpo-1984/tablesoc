@@ -1,0 +1,16 @@
+{
+  "name": "cyber-foosball",
+  "version": "1.0.0",
+  "description": "Cyberpunk themed 3D Table Soccer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "three": "^0.160.0",
+    "cannon-es": "^0.20.0"
+  }
+}
