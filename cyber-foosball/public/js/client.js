@@ -52,7 +52,7 @@ class Game {
 
     setupTable() {
         // テーブルの床
-        const floorGeo = new THREE.BoxGeometry(10, 0.5, 20);
+        const floorGeo = new THREE.BoxGeometry(10, 0.5, 22);
         const floorMat = new THREE.MeshStandardMaterial({
             color: 0x050505,
             metalness: 0.9,
@@ -66,18 +66,47 @@ class Game {
         // 物理の床
         const floorBody = new CANNON.Body({
             mass: 0,
-            shape: new CANNON.Box(new CANNON.Vec3(5, 0.25, 10))
+            shape: new CANNON.Box(new CANNON.Vec3(5, 0.25, 11))
         });
         this.world.addBody(floorBody);
 
-        // 壁
-        this.createWall(0, 1, 10.25, 10.5, 2, 0.5); // 奥
-        this.createWall(0, 1, -10.25, 10.5, 2, 0.5); // 手前
-        this.createWall(5.25, 1, 0, 0.5, 2, 21); // 右
-        this.createWall(-5.25, 1, 0, 0.5, 2, 21); // 左
+        // 壁 (少し長く)
+        this.createWall(0, 1, 11.25, 10.5, 2, 0.5); // 奥
+        this.createWall(0, 1, -11.25, 10.5, 2, 0.5); // 手前
+        this.createWall(5.25, 1, 0, 0.5, 2, 23); // 右
+        this.createWall(-5.25, 1, 0, 0.5, 2, 23); // 左
 
+        this.setupGoals();
         this.setupBall();
         this.setupRods();
+    }
+
+    setupGoals() {
+        const goalWidth = 3;
+        const goalDepth = 1;
+        const goalHeight = 1.5;
+
+        const createGoal = (zPos, color) => {
+            const goalGeo = new THREE.BoxGeometry(goalWidth, goalHeight, goalDepth);
+            const goalMat = new THREE.MeshStandardMaterial({
+                color: 0x111111,
+                emissive: color,
+                emissiveIntensity: 0.5,
+                transparent: true,
+                opacity: 0.5
+            });
+            const goalMesh = new THREE.Mesh(goalGeo, goalMat);
+            goalMesh.position.set(0, goalHeight / 2, zPos);
+            this.scene.add(goalMesh);
+
+            // 枠線
+            const edges = new THREE.EdgesGeometry(goalGeo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: color }));
+            goalMesh.add(line);
+        };
+
+        createGoal(-11, TEAM_COLORS.p1); // P1のゴール
+        createGoal(11, TEAM_COLORS.p2);  // P2のゴール
     }
 
     createWall(x, y, z, w, h, d) {
@@ -103,15 +132,23 @@ class Game {
 
     setupBall() {
         const radius = 0.3;
-        const geo = new THREE.IcosahedronGeometry(radius, 2);
+        // サッカーボールっぽさを出すために模様をつけるのは難しいので、より明るく発光させる
+        const geo = new THREE.SphereGeometry(radius, 32, 32);
         const mat = new THREE.MeshStandardMaterial({
             color: 0xffffff,
-            emissive: 0x00ffff,
-            emissiveIntensity: 0.5
+            emissive: 0xffffee,
+            emissiveIntensity: 1.0,
+            roughness: 0.4
         });
         this.ball = new THREE.Mesh(geo, mat);
         this.ball.position.y = 2;
         this.scene.add(this.ball);
+
+        // ネオンの光環を追加して目立たせる
+        const haloGeo = new THREE.SphereGeometry(radius * 1.2, 16, 16);
+        const haloMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.2, side: THREE.BackSide, blending: THREE.AdditiveBlending });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        this.ball.add(halo);
 
         const shape = new CANNON.Sphere(radius);
         this.ballBody = new CANNON.Body({
@@ -124,28 +161,41 @@ class Game {
     }
 
     setupRods() {
-        // ロッドの配置 (z座標)
-        const rodPositions = [-7, -3, 3, 7];
-        rodPositions.forEach((z, index) => {
-            const rodId = `rod_${index}`;
-            const side = index < 2 ? 'p1' : 'p2';
+        // 1-4-3-3のフォーメーション設定 (Z座標と配置人数)
+        const formation = [
+            { z: -9, side: 'p1', count: 1 }, // P1 GK
+            { z: -7, side: 'p1', count: 4 }, // P1 DF
+            { z: -4, side: 'p2', count: 3 }, // P2 FW
+            { z: -1, side: 'p1', count: 3 }, // P1 MF
+            { z: 1, side: 'p2', count: 3 }, // P2 MF
+            { z: 4, side: 'p1', count: 3 }, // P1 FW
+            { z: 7, side: 'p2', count: 4 }, // P2 DF
+            { z: 9, side: 'p2', count: 1 }  // P2 GK
+        ];
 
-            // Three.js Rod
-            const rodGeo = new THREE.CylinderGeometry(0.1, 0.1, 11, 8);
+        formation.forEach((rodConfig, index) => {
+            const rodId = `rod_${index}`;
+            const { z, side, count } = rodConfig;
+
+            // Three.js Rod - 横棒をメタリックにして端まで伸ばす
+            const rodGeo = new THREE.CylinderGeometry(0.1, 0.1, 12, 16);
             rodGeo.rotateZ(Math.PI / 2);
-            const rodMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+            const rodMat = new THREE.MeshStandardMaterial({
+                color: 0x999999,
+                metalness: 0.8,
+                roughness: 0.2
+            });
             const rodMesh = new THREE.Mesh(rodGeo, rodMat);
             rodMesh.position.set(0, 1.5, z);
             this.scene.add(rodMesh);
 
             // プレイヤー（人形）
-            const players = this.createPlayersOnRod(rodMesh, side);
+            const players = this.createPlayersOnRod(rodMesh, side, count);
 
-            // Cannon.js Rod Body (横移動と回転をシミュレートするため、複数のBodyで構成するか、1つを制御)
-            // ここでは簡易的に1つのBodyを作成
+            // Cannon.js Rod Body
             const rodBody = new CANNON.Body({
-                mass: 0, // 動的な制御のため0(static)にして手動で動かす
-                shape: new CANNON.Box(new CANNON.Vec3(5, 0.1, 0.1))
+                mass: 0,
+                shape: new CANNON.Box(new CANNON.Vec3(6, 0.1, 0.1))
             });
             rodBody.position.set(0, 1.5, z);
             this.world.addBody(rodBody);
@@ -154,31 +204,49 @@ class Game {
         });
     }
 
-    createPlayersOnRod(rodMesh, side) {
+    createPlayersOnRod(rodMesh, side, count) {
         const playerGeos = [];
-        const count = 3;
-        const spacing = 3;
+        // 人数に応じて間隔を調整
+        let spacing = 2;
+        if (count === 4) spacing = 1.8;
+        if (count === 1) spacing = 0;
+
         const color = TEAM_COLORS[side];
 
         for (let i = 0; i < count; i++) {
             const group = new THREE.Group();
 
-            const bodyGeo = new THREE.BoxGeometry(0.5, 1.2, 0.3);
+            const bodyGeo = new THREE.BoxGeometry(0.6, 1.4, 0.4);
             const bodyMat = new THREE.MeshStandardMaterial({
-                color: 0x222222,
+                color: 0x111111,
+                metalness: 0.3,
+                roughness: 0.7,
                 emissive: color,
-                emissiveIntensity: 0.2
+                emissiveIntensity: 0.4
             });
             const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = -0.6;
+            body.position.y = -0.7; // 棒より下に体を配置
             group.add(body);
 
-            const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
+            // 頭を追加
+            const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
             const head = new THREE.Mesh(headGeo, bodyMat);
-            head.position.y = 0.2;
+            head.position.y = 0.3;
             group.add(head);
 
-            group.position.x = (i - (count - 1) / 2) * spacing;
+            // 足（ボールを蹴る部分）を少し前に出す
+            const footGeo = new THREE.BoxGeometry(0.6, 0.3, 0.3);
+            const foot = new THREE.Mesh(footGeo, bodyMat);
+            foot.position.y = -1.3;
+            foot.position.z = 0.1;
+            group.add(foot);
+
+            if (count > 1) {
+                group.position.x = (i - (count - 1) / 2) * spacing;
+            } else {
+                group.position.x = 0;
+            }
+
             rodMesh.add(group);
             playerGeos.push(group);
         }
