@@ -132,23 +132,40 @@ class Game {
 
     setupBall() {
         const radius = 0.3;
-        // サッカーボールっぽさを出すために模様をつけるのは難しいので、より明るく発光させる
+
+        // クラシックなサッカーボールを描画するためのキャンバステクスチャ作成
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff'; // 白背景
+        ctx.fillRect(0, 0, 512, 256);
+        ctx.fillStyle = '#111111'; // 黒い模様
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 4; j++) {
+                if ((i + j) % 2 === 0) {
+                    ctx.beginPath();
+                    // 六角形/五角形っぽく見えるように少し大きめの円を描画
+                    ctx.arc(i * 64 + 32, j * 64 + 32, 24, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+
         const geo = new THREE.SphereGeometry(radius, 32, 32);
         const mat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            emissive: 0xffffee,
-            emissiveIntensity: 1.0,
-            roughness: 0.4
+            map: texture,
+            roughness: 0.6,
+            metalness: 0.1
         });
+
         this.ball = new THREE.Mesh(geo, mat);
         this.ball.position.y = 2;
         this.scene.add(this.ball);
-
-        // ネオンの光環を追加して目立たせる
-        const haloGeo = new THREE.SphereGeometry(radius * 1.2, 16, 16);
-        const haloMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.2, side: THREE.BackSide, blending: THREE.AdditiveBlending });
-        const halo = new THREE.Mesh(haloGeo, haloMat);
-        this.ball.add(halo);
 
         const shape = new CANNON.Sphere(radius);
         this.ballBody = new CANNON.Body({
@@ -270,38 +287,135 @@ class Game {
     }
 
     setupControls() {
+        this.activeRodIndex = 0; // 0=GK, 1=DF, 2=MF, 3=FW
+        this.activeRod = null;
+
+        const updateActiveRod = () => {
+            const myRods = this.rods.filter(r => r.side === this.mySide);
+            // 自分のゴールから近い順にソート (GK, DF, MF, FW)
+            myRods.sort((a, b) => {
+                const distA = this.mySide === 'p1' ? a.mesh.position.z : -a.mesh.position.z;
+                const distB = this.mySide === 'p1' ? b.mesh.position.z : -b.mesh.position.z;
+                return distA - distB;
+            });
+
+            if (this.activeRod) {
+                this.setRodHighlight(this.activeRod, false);
+            }
+            this.activeRod = myRods[this.activeRodIndex];
+            if (this.activeRod) {
+                this.setRodHighlight(this.activeRod, true);
+            }
+
+            // Update UI buttons
+            document.querySelectorAll('.rod-btn').forEach((btn, idx) => {
+                if (idx === this.activeRodIndex) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        };
+
+        updateActiveRod();
+
+        // UIボタンによるロッド切り替え
+        document.querySelectorAll('.rod-btn').forEach((btn, idx) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.activeRodIndex = idx;
+                updateActiveRod();
+            });
+        });
+
+        // 共通の移動メソッド (同期付き)
+        const moveActiveRod = (dx) => {
+            if (!this.activeRod) return;
+            const dirMultiplier = this.mySide === 'p2' ? -1 : 1; // P2は視点が反転しているので操作も反転
+            this.activeRod.mesh.position.x = Math.max(-2, Math.min(2, this.activeRod.mesh.position.x + dx * dirMultiplier));
+            this.activeRod.body.position.x = this.activeRod.mesh.position.x;
+
+            this.socket.emit('rodMove', {
+                rodId: this.activeRod.id,
+                x: this.activeRod.mesh.position.x,
+                rotation: this.activeRod.mesh.rotation.x
+            });
+        };
+
+        // 共通の回転メソッド (同期付き)
+        const rotActiveRod = (speed) => {
+            if (!this.activeRod) return;
+            const dirMultiplier = this.mySide === 'p2' ? -1 : 1;
+            this.rotateRod(this.activeRod, speed * dirMultiplier);
+        };
+
+        // ========== PC Keyboard Controls ==========
+        window.addEventListener('keydown', (e) => {
+            // キーボードの1~4でロッド切り替え
+            if (['1', '2', '3', '4'].includes(e.key)) {
+                this.activeRodIndex = parseInt(e.key) - 1;
+                updateActiveRod();
+                return;
+            }
+
+            const moveStep = 0.5;
+            const rotStep = 0.2;
+
+            if (e.key === 'ArrowLeft' || e.key === 'a') {
+                moveActiveRod(-moveStep);
+            } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                moveActiveRod(moveStep);
+            } else if (e.key === 'ArrowUp' || e.key === 'w') {
+                rotActiveRod(-rotStep);
+            } else if (e.key === 'ArrowDown' || e.key === 's') {
+                rotActiveRod(rotStep);
+            }
+        });
+
+        // ========== PC Mouse Controls ==========
+        let isMouseDown = false;
+        let lastMouseX = 0;
+
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            isMouseDown = true;
+            lastMouseX = e.clientX;
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isMouseDown) return;
+            const dx = (e.clientX - lastMouseX) * 0.02;
+            moveActiveRod(dx);
+            lastMouseX = e.clientX;
+        });
+        window.addEventListener('mouseup', () => { isMouseDown = false; });
+
+        window.addEventListener('wheel', (e) => {
+            const rotSpeed = e.deltaY * 0.005;
+            rotActiveRod(rotSpeed);
+        });
+
+        // ========== Mobile Touch Controls ==========
         let startX = 0, startY = 0;
-        let activeRod = null;
         let lastTime = 0;
 
         window.addEventListener('touchstart', (e) => {
+            if (e.target.tagName === 'BUTTON') return;
             const touch = e.touches[0];
             startX = touch.clientX;
             startY = touch.clientY;
             lastTime = Date.now();
-
-            // 最も近い「自分の」ロッドを選択
-            const myRods = this.rods.filter(r => r.side === this.mySide);
-            // 簡易的にタップ位置ではなく、順番に切り替えるか、z座標で判定
-            // 今回はとりあえず最初のロッドを選択
-            activeRod = myRods[0];
-            this.setRodHighlight(activeRod, true);
         });
 
         window.addEventListener('touchmove', (e) => {
-            if (!activeRod) return;
+            if (e.target.tagName === 'BUTTON') return;
             const touch = e.touches[0];
-            const dx = (touch.clientX - startX) * 0.05;
-
-            // ロッドの移動制限
-            activeRod.mesh.position.x = Math.max(-2, Math.min(2, activeRod.mesh.position.x + dx));
-            activeRod.body.position.x = activeRod.mesh.position.x;
-
+            const dx = (touch.clientX - startX) * 0.02;
+            moveActiveRod(dx);
             startX = touch.clientX;
         });
 
         window.addEventListener('touchend', (e) => {
-            if (!activeRod) return;
+            if (e.target.tagName === 'BUTTON') return;
             const touch = e.changedTouches[0];
             const dy = touch.clientY - startY;
             const dt = Date.now() - lastTime;
@@ -309,11 +423,8 @@ class Game {
             // フリックによる回転
             if (Math.abs(dy) > 10 && dt < 200) {
                 const rotationImpulse = dy * 0.01;
-                this.rotateRod(activeRod, rotationImpulse);
+                rotActiveRod(rotationImpulse);
             }
-
-            this.setRodHighlight(activeRod, false);
-            activeRod = null;
         });
     }
 
