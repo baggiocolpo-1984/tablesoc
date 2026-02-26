@@ -1,56 +1,163 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #000;
+    font-family: 'Courier New', Courier, monospace;
+    color: #0ff;
+    user-select: none;
+    touch-action: none;
+}
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+#ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
-app.use(express.static(path.join(__dirname, 'public')));
+#score-board {
+    margin-top: 20px;
+    font-size: 48px;
+    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 30px;
+    border: 2px solid #0ff;
+    border-radius: 10px;
+    pointer-events: auto;
+}
 
-// サーバー側でのゲーム状態管理
-let players = {};
-let gameState = {
-    ball: { x: 0, y: 0.5, z: 0 },
-    scores: { p1: 0, p2: 0 }
-};
+#overlay {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.7);
+    width: 100%;
+    pointer-events: auto;
+}
 
-io.on('connection', (socket) => {
-    console.log('a user connected:', socket.id);
+#status-text {
+    font-size: 32px;
+    text-align: center;
+    margin-bottom: 20px;
+}
 
-    // プレイヤーの割り当て (2人まで)
-    if (Object.keys(players).length < 2) {
-        const playerSide = Object.keys(players).length === 0 ? 'p1' : 'p2';
-        players[socket.id] = { side: playerSide };
-        socket.emit('init', { side: playerSide, id: socket.id });
-    } else {
-        socket.emit('spectator');
+#start-btn {
+    padding: 15px 40px;
+    font-size: 24px;
+    background: #000;
+    color: #0ff;
+    border: 2px solid #0ff;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+#start-btn:hover {
+    background: #0ff;
+    color: #000;
+    box-shadow: 0 0 20px #0ff;
+}
+
+#canvas-container {
+    width: 100vw;
+    height: 100vh;
+}
+
+#operation-guide {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 15px 25px;
+    color: #fff;
+    pointer-events: none;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+}
+
+#operation-guide h3 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    padding-bottom: 5px;
+    color: #0ff;
+    text-shadow: 0 0 10px #0ff;
+}
+
+#operation-guide p {
+    margin: 10px 0;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+#rod-selection {
+    position: absolute;
+    bottom: 20px;
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #0ff;
+}
+
+.rod-btn {
+    background: #111;
+    color: #888;
+    border: 2px solid #555;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.rod-btn.active {
+    background: #0ff;
+    color: #000;
+    border-color: #fff;
+    box-shadow: 0 0 15px #0ff;
+}
+
+@media (max-width: 768px) {
+    #operation-guide {
+        top: 80px;
+        right: 10px;
+        transform: none;
+        padding: 10px 15px;
     }
 
-    socket.on('disconnect', () => {
-        console.log('user disconnected:', socket.id);
-        delete players[socket.id];
-    });
+    #operation-guide h3 {
+        font-size: 16px;
+        margin-bottom: 8px;
+    }
 
-    // ロッド操作の受信と全プレイヤーへの同期
-    socket.on('rodMove', (data) => {
-        socket.broadcast.emit('rodMoved', { id: socket.id, ...data });
-    });
+    #operation-guide p {
+        font-size: 12px;
+        margin: 5px 0;
+    }
 
-    // ボールの同期 (本来はサーバー側物理演算が理想だが、今回はクライアント主導の同期)
-    socket.on('ballSync', (data) => {
-        socket.broadcast.emit('ballSynced', data);
-    });
+    #rod-selection {
+        bottom: 10px;
+        gap: 5px;
+        padding: 5px;
+    }
 
-    // スコアの同期
-    socket.on('scoreUpdate', (data) => {
-        gameState.scores = data;
-        io.emit('scoreSynced', gameState.scores);
-    });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+    .rod-btn {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+}
